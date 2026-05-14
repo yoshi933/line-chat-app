@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LINE風チャットアプリ</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #fff;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ===== ローディング画面 ===== */
+    #loadingScreen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+    }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #00b900;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* ===== 登録画面 ===== */
+    #registrationScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #00b900 0%, #00a600 100%);
+      padding: 20px;
+    }
+
+    .registration-container {
+      background: white;
+      border-radius: 15px;
+      padding: 30px;
+      width: 100%;
+      max-width: 350px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .registration-container h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 24px;
+      text-align: center;
+    }
+
+    .registration-container p {
+      color: #666;
+      text-align: center;
+      margin-bottom: 25px;
+      font-size: 14px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      color: #333;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #00b900;
+      box-shadow: 0 0 0 3px rgba(0, 185, 0, 0.1);
+    }
+
+    .form-group input:disabled {
+      background: #f5f5f5;
+      color: #999;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: #00b900;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #00a600;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 185, 0, 0.3);
+    }
+
+    .btn-primary:disabled {
+      background: #ddd;
+      cursor: not-allowed;
+    }
+
+    .error-message {
+      color: #d32f2f;
+      font-size: 13px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    /* ===== チャット画面 ===== */
+    #chatScreen {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      background: #fff;
+    }
+
+    .chat-container {
+      display: flex;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* サイドバー */
+    .sidebar {
+      width: 280px;
+      background: #f5f5f5;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 15px;
+      border-bottom: 1px solid #e0e0e0;
+      background: white;
+    }
+
+    .sidebar-header h2 {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .current-user-info {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    .conversation-list {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+    }
+
+    .conversation-item {
+      padding: 12px 15px;
+      border-bottom: 1px solid #e0e0e0;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .conversation-item:hover {
+      background: #e8e8e8;
+    }
+
+    .conversation-item.active {
+      background: #dcf8c6;
+      border-left: 4px solid #00b900;
+      padding-left: 11px;
+    }
+
+    .conversation-item-name {
+      font-weight: 600;
+      color: #333;
+      font-size: 14px;
+    }
+
+    .conversation-item-time {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    /* メインチャット領域 */
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: white;
+    }
+
+    .chat-header {
+      padding: 15px;
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-header h3 {
+      font-size: 16px;
+      color: #333;
+    }
+
+    .chat-header-subtitle {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    /* メッセージエリア */
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      background: white;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message-group {
+      display: flex;
+      margin-bottom: 15px;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message-group.sent {
+      justify-content: flex-end;
+    }
+
+    .message-group.received {
+      justify-content: flex-start;
+    }
+
+    .message-bubble {
+      max-width: 70%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 14px;
+      word-wrap: break-word;
+      position: relative;
+    }
+
+    .message-group.sent .message-bubble {
+      background: #00b900;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message-group.received .message-bubble {
+      background: #e0e0e0;
+      color: #333;
+      border-bottom-left-radius: 4px;
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: #999;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    .message-group.received .message-time {
+      text-align: left;
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    /* 入力エリア */
+    .input-area {
+      padding: 12px 15px;
+      background: white;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      gap: 10px;
+    }
+
+    .input-area input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .input-area input:focus {
+      outline: none;
+      border-color: #00b900;
+    }
+
+    .input-area button {
+      padding: 10px 20px;
+      background: #00b900;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .input-area button:hover {
+      background: #00a600;
+      transform: translateY(-2px);
+    }
+
+    .input-area button:active {
+      transform: translateY(0);
+    }
+
+    /* ===== ノユーザー選択状態 ===== */
+    .no-conversation {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 14px;
+    }
+
+    /* ===== スクロールバー ===== */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #999;
+    }
+
+    /* ===== レスポンシブ ===== */
+    @media (max-width: 600px) {
+      .sidebar {
+        width: 100%;
+        height: 50%;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .chat-container {
+        flex-direction: column;
+      }
+
+      .chat-main {
+        height: 50%;
+      }
+
+      .message-bubble {
+        max-width: 85%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- ローディング画面 -->
+  <div id="loadingScreen">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- 登録画面 -->
+  <div id="registrationScreen">
+    <div class="registration-container">
+      <h1>ようこそ!</h1>
+      <p>チャットアプリを使用するにはユーザー名を設定してください</p>
+      
+      <div class="form-group">
+        <label for="emailInput">メールアドレス</label>
+        <input type="email" id="emailInput" disabled>
+      </div>
+
+      <div class="form-group">
+        <label for="usernameInput">ユーザー名</label>
+        <input type="text" id="usernameInput" placeholder="ユーザー名を入力してください" maxlength="50">
+        <div class="error-message" id="usernameError"></div>
+      </div>
+
+      <button class="btn btn-primary" id="registerBtn">登録する</button>
+    </div>
+  </div>
+
+  <!-- チャット画面 -->
+  <div id="chatScreen">
+    <div class="chat-container">
+      <!-- サイドバー -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <h2>チャット</h2>
+          <div class="current-user-info">
+            <div id="currentUsername"></div>
+            <div id="currentUserEmail"></div>
+          </div>
+        </div>
+        <ul class="conversation-list" id="conversationList">
+          <!-- 会話一覧がここに動的に挿入される -->
+        </ul>
+      </div>
+
+      <!-- メインチャット領域 -->
+      <div class="chat-main">
+        <div class="chat-header" id="chatHeader" style="display: none;">
+          <div>
+            <h3 id="chatPartnerName"></h3>
+            <div class="chat-header-subtitle" id="chatPartnerEmail"></div>
+          </div>
+        </div>
+
+        <div id="noConversationSelected" class="no-conversation">
+          会話を選択してください
+        </div>
+
+        <div class="messages-container" id="messagesContainer" style="display: none;">
+          <!-- メッセージがここに動的に挿入される -->
+        </div>
+
+        <div class="input-area" id="inputArea" style="display: none;">
+          <input type="text" id="messageInput" placeholder="メッセージを入力..." maxlength="10000">
+          <button id="sendBtn">送信</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // グローバル状態管理
+    const AppState = {
+      currentUser: null,
+      selectedConversationId: null,
+      conversations: [],
+      messages: [],
+      isInitialized: false,
+      pollInterval: null
+    };
+
+    /**
+     * 初期化処理
+     */
+    async function initializeApp() {
+      try {
+        // ユーザー登録状態を確認
+        const result = await new Promise(resolve => {
+          google.script.run.withSuccessHandler(resolve).checkUserExists();
+        });
+
+        if (result.success && result.exists) {
+          // ユーザーが登録されている場合
+          AppState.currentUser = result.user;
+          displayChatUI();
+          startPolling();
+        } else {
+          // ユーザーが登録されていない場合
+          displayRegistrationUI();
+        }
+      } catch (error) {
+        console.error('Initialize Error:', error);
+        showError('初期化に失敗しました');
+      }
+    }
+
+    /**
+     * 登録UI表示
+     */
+    async function displayRegistrationUI() {
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('registrationScreen').style.display = 'flex';
+
+      // メールアドレスを取得して表示
+      const emailResult = await new Promise(resolve => {
+        google.script.run.withSuccessHandler(resolve).handleRequest('getCurrentUser', {});
+      });
+
+      if (emailResult.user) {
+        document.getElementById('emailInput').value = emailResult.user.email;
+      }
+
+      // 登録ボタンのイベントリスナー
+      document.getElementById('registerBtn').addEventListener('click', registerUser);
+      document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') registerUser();
+      });
+    }
+
+    /**
+     * ユーザー登録処理
+     */
+    async function registerUser() {
+      const username = document.getElementById('usernameInput').value.trim();
+      const errorElement = document.getElementById('usernameError');
+      const registerBtn = document.getElementById('registerBtn');
+
+      // ユーザー名の検証
+      if (!username) {
+        errorElement.textContent = 'ユーザー名を入力してください';
+        errorElement.style.display = 'block';
+        return;
+      }
+
+      if (username.length > 50) {
+        errorElement.textContent = 'ユーザー名は50文字以内で入力してください';
+        errorElement.style.display = 'block';
+        return;
+      }
+
+      // 登録処理
+      registerBtn.disabled = true;
+      registerBtn.textContent = '登録中...';
+
+      try {
+        const result = await new Promise(resolve => {
+          google.script.run.withSuccessHandler(resolve).registerUser(username);
+        });
+
+        if (result.success) {
+          AppState.currentUser = {
+            userId: result.userId,
+            email: result.email,
+            username: result.username,
+            createdAt: result.createdAt
+          };
+
+          // チャットUI表示
+          document.getElementById('registrationScreen').style.display = 'none';
+          displayChatUI();
+          startPolling();
+        } else {
+          errorElement.textContent = result.error || '登録に失敗しました';
+          errorElement.style.display = 'block';
+        }
+      } catch (error) {
+        errorElement.textContent = 'エラーが発生しました';
+        errorElement.style.display = 'block';
+        console.error('Register Error:', error);
+      } finally {
+        registerBtn.disabled = false;
+        registerBtn.textContent = '登録する';
+      }
+    }
+
+    /**
+     * チャットUI表示
+     */
+    function displayChatUI() {
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('registrationScreen').style.display = 'none';
+      document.getElementById('chatScreen').style.display = 'flex';
+
+      // 現在のユーザー情報を表示
+      document.getElementById('currentUsername').textContent = AppState.currentUser.username;
+      document.getElementById('currentUserEmail').textContent = AppState.currentUser.email;
+
+      // 送信ボタンのイベントリスナー
+      document.getElementById('sendBtn').addEventListener('click', sendMessage);
+      document.getElementById('messageInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      AppState.isInitialized = true;
+      loadConversations();
+    }
+
+    /**
+     * 会話一覧を読み込む
+     */
+    async function loadConversations() {
+      try {
+        const result = await new Promise(resolve => {
+          google.script.run.withSuccessHandler(resolve).handleRequest('getConversations', {
+            userId: AppState.currentUser.userId
+          });
+        });
+
+        if (result.success) {
+          AppState.conversations = result.conversations;
+          renderConversationList();
+        }
+      } catch (error) {
+        console.error('Load Conversations Error:', error);
+      }
+    }
+
+    /**
+     * 会話一覧を描画
+     */
+    function renderConversationList() {
+      const list = document.getElementById('conversationList');
+      list.innerHTML = '';
+
+      if (AppState.conversations.length === 0) {
+        list.innerHTML = '<li style="padding: 15px; text-align: center; color: #999;">会話がありません</li>';
+        return;
+      }
+
+      AppState.conversations.forEach(conversation => {
+        const li = document.createElement('li');
+        li.className = 'conversation-item';
+        if (conversation.userId === AppState.selectedConversationId) {
+          li.classList.add('active');
+        }
+
+        const time = new Date(conversation.lastMessageTime);
+        const timeStr = formatTime(time);
+
+        li.innerHTML = `
+          <div class="conversation-item-name">${escapeHtml(conversation.username)}</div>
+          <div class="conversation-item-time">${timeStr}</div>
+        `;
+
+        li.addEventListener('click', () => selectConversation(conversation));
+        list.appendChild(li);
+      });
+    }
+
+    /**
+     * 会話を選択
+     */
+    async function selectConversation(conversation) {
+      AppState.selectedConversationId = conversation.userId;
+      renderConversationList();
+
+      // チャットヘッダーを表示
+      document.getElementById('chatHeader').style.display = 'flex';
+      document.getElementById('noConversationSelected').style.display = 'none';
+      document.getElementById('messagesContainer').style.display = 'flex';
+      document.getElementById('inputArea').style.display = 'flex';
+
+      document.getElementById('chatPartnerName').textContent = escapeHtml(conversation.username);
+      document.getElementById('chatPartnerEmail').textContent = conversation.email;
+
+      // メッセージを読み込む
+      await loadMessages();
+    }
+
+    /**
+     * メッセージを読み込む
+     */
+    async function loadMessages() {
+      try {
+        const result = await new Promise(resolve => {
+          google.script.run.withSuccessHandler(resolve).handleRequest('getMessages', {
+            userId: AppState.selectedConversationId,
+            limit: 50
+          });
+        });
+
+        if (result.success) {
+          AppState.messages = result.messages;
+          renderMessages();
+        }
+      } catch (error) {
+        console.error('Load Messages Error:', error);
+      }
+    }
+
+    /**
+     * メッセージを描画
+     */
+    function renderMessages() {
+      const container = document.getElementById('messagesContainer');
+      container.innerHTML = '';
+
+      if (AppState.messages.length === 0) {
+        container.innerHTML = '<div class="empty-state">メッセージはまだありません</div>';
+        return;
+      }
+
+      AppState.messages.forEach(message => {
+        const isSent = message.senderId === AppState.currentUser.userId;
+        const group = document.createElement('div');
+        group.className = `message-group ${isSent ? 'sent' : 'received'}`;
+
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        bubble.textContent = message.message;
+
+        const time = document.createElement('div');
+        time.className = 'message-time';
+        time.textContent = formatTime(new Date(message.timestamp));
+
+        group.appendChild(bubble);
+        group.appendChild(time);
+        container.appendChild(group);
+      });
+
+      // スクロールを最下部に
+      container.scrollTop = container.scrollHeight;
+    }
+
+    /**
+     * メッセージを送信
+     */
+    async function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const message = input.value.trim();
+
+      if (!message) return;
+
+      try {
+        const result = await new Promise(resolve => {
+          google.script.run.withSuccessHandler(resolve).handleRequest('sendMessage', {
+            recipientId: AppState.selectedConversationId,
+            message: message
+          });
+        });
+
+        if (result.success) {
+          input.value = '';
+          await loadMessages();
+          await loadConversations();
+        } else {
+          showError(result.error || 'メッセージの送信に失敗しました');
+        }
+      } catch (error) {
+        console.error('Send Message Error:', error);
+        showError('メッセージの送信に失敗しました');
+      }
+    }
+
+    /**
+     * ポーリング開始
+     */
+    function startPolling() {
+      // 2秒ごとにメッセージと会話を更新
+      AppState.pollInterval = setInterval(async () => {
+        if (AppState.selectedConversationId) {
+          await loadMessages();
+        }
+        await loadConversations();
+      }, 2000);
+    }
+
+    /**
+     * ユーティリティ関数
+     */
+    function formatTime(date) {
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'たった今';
+      if (diffMins < 60) return `${diffMins}分前`;
+      if (diffHours < 24) return `${diffHours}時間前`;
+      if (diffDays < 7) return `${diffDays}日前`;
+
+      return date.toLocaleDateString('ja-JP');
+    }
+
+    function escapeHtml(text) {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, char => map[char]);
+    }
+
+    function showError(message) {
+      alert(message); // 簡易実装。本来はトーストなど使用
+    }
+
+    // アプリ起動
+    window.addEventListener('load', () => {
+      initializeApp();
+    });
+  </script>
+</body>
+</html>
