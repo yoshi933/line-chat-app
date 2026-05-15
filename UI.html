@@ -187,6 +187,119 @@
       color: #666;
     }
 
+    .new-talk-btn {
+      width: 100%;
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #00b900;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .new-talk-btn:hover {
+      background: #00a600;
+    }
+
+    /* モーダル */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-box {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 360px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-box h3 {
+      font-size: 17px;
+      color: #333;
+      margin-bottom: 16px;
+    }
+
+    .modal-box input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 8px;
+      transition: border-color 0.3s;
+    }
+
+    .modal-box input:focus {
+      outline: none;
+      border-color: #00b900;
+    }
+
+    .modal-error {
+      color: #d32f2f;
+      font-size: 12px;
+      margin-bottom: 8px;
+      display: none;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .modal-actions button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .modal-btn-primary {
+      background: #00b900;
+      color: white;
+    }
+
+    .modal-btn-primary:hover:not(:disabled) {
+      background: #00a600;
+    }
+
+    .modal-btn-primary:disabled {
+      background: #ddd;
+      cursor: not-allowed;
+    }
+
+    .modal-btn-cancel {
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    .modal-btn-cancel:hover {
+      background: #e8e8e8;
+    }
+
     .conversation-list {
       flex: 1;
       overflow-y: auto;
@@ -459,6 +572,7 @@
             <div id="currentUsername"></div>
             <div id="currentUserEmail"></div>
           </div>
+          <button class="new-talk-btn" id="newTalkBtn">＋ 新しいトーク</button>
         </div>
         <ul class="conversation-list" id="conversationList">
           <!-- 会話一覧がここに動的に挿入される -->
@@ -490,6 +604,19 @@
     </div>
   </div>
 
+  <!-- 新しいトーク モーダル -->
+  <div class="modal-overlay" id="newTalkModal">
+    <div class="modal-box">
+      <h3>新しいトークを開始</h3>
+      <input type="email" id="newTalkEmailInput" placeholder="相手のメールアドレスを入力" autocomplete="off">
+      <div class="modal-error" id="newTalkError"></div>
+      <div class="modal-actions">
+        <button class="modal-btn-cancel" id="newTalkCancelBtn">キャンセル</button>
+        <button class="modal-btn-primary" id="newTalkStartBtn">開始</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // グローバル状態管理
     const AppState = {
@@ -513,7 +640,7 @@
           google.script.run
             .withSuccessHandler(resolve)
             .withFailureHandler(reject)
-            .checkUserExists();
+            .handleRequest('checkUserExists', {});
         });
 
         console.log('checkUserExists result:', result);
@@ -653,6 +780,17 @@
           e.preventDefault();
           sendMessage();
         }
+      });
+
+      // 新しいトークボタンのイベントリスナー
+      document.getElementById('newTalkBtn').addEventListener('click', openNewTalkModal);
+      document.getElementById('newTalkCancelBtn').addEventListener('click', closeNewTalkModal);
+      document.getElementById('newTalkStartBtn').addEventListener('click', startNewTalk);
+      document.getElementById('newTalkEmailInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') startNewTalk();
+      });
+      document.getElementById('newTalkModal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeNewTalkModal();
       });
 
       AppState.isInitialized = true;
@@ -846,6 +984,106 @@
         }
         await loadConversations();
       }, 2000);
+    }
+
+    /**
+     * 新しいトークモーダルを開く
+     */
+    function openNewTalkModal() {
+      const modal = document.getElementById('newTalkModal');
+      modal.classList.add('active');
+      document.getElementById('newTalkEmailInput').value = '';
+      document.getElementById('newTalkError').style.display = 'none';
+      document.getElementById('newTalkError').textContent = '';
+      document.getElementById('newTalkStartBtn').disabled = false;
+      setTimeout(() => document.getElementById('newTalkEmailInput').focus(), 50);
+    }
+
+    /**
+     * 新しいトークモーダルを閉じる
+     */
+    function closeNewTalkModal() {
+      document.getElementById('newTalkModal').classList.remove('active');
+    }
+
+    /**
+     * 新しいトークを開始する
+     */
+    async function startNewTalk() {
+      const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const emailInput = document.getElementById('newTalkEmailInput');
+      const errorEl = document.getElementById('newTalkError');
+      const startBtn = document.getElementById('newTalkStartBtn');
+      const email = emailInput.value.trim();
+
+      // 入力検証
+      if (!email) {
+        errorEl.textContent = 'メールアドレスを入力してください';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      if (!EMAIL_REGEX.test(email)) {
+        errorEl.textContent = '有効なメールアドレスを入力してください';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      startBtn.disabled = true;
+      errorEl.style.display = 'none';
+
+      try {
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .handleRequest('findUserByEmail', { email: email });
+        });
+
+        console.log('findUserByEmail result:', result);
+
+        if (result.success) {
+          closeNewTalkModal();
+
+          const partner = result.user;
+
+          // 既存の会話リストにない場合は追加
+          const existing = AppState.conversations.find(c => c.userId === partner.userId);
+          if (!existing) {
+            const newConv = {
+              userId: partner.userId,
+              username: partner.username,
+              email: partner.email,
+              lastMessageTime: new Date().toISOString()
+            };
+            AppState.conversations.unshift(newConv);
+            renderConversationList();
+          }
+
+          // この相手との会話を選択
+          await selectConversation({
+            userId: partner.userId,
+            username: partner.username,
+            email: partner.email,
+            lastMessageTime: new Date().toISOString()
+          });
+        } else {
+          if (result.error === 'No user found with this email address') {
+            errorEl.textContent = '指定したメールアドレスのユーザーが見つかりません';
+          } else if (result.error === 'Cannot start a conversation with yourself') {
+            errorEl.textContent = '自分自身とのトークは開始できません';
+          } else {
+            errorEl.textContent = result.error || 'エラーが発生しました';
+          }
+          errorEl.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('startNewTalk Error:', error);
+        errorEl.textContent = 'エラーが発生しました: ' + error.toString();
+        errorEl.style.display = 'block';
+      } finally {
+        startBtn.disabled = false;
+      }
     }
 
     /**

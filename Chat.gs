@@ -251,6 +251,43 @@ const ChatModule = {
   },
 
   /**
+   * メールアドレスで登録済みユーザーを検索（新しいトーク開始用）
+   * @param {string} email - 検索するメールアドレス
+   * @returns {Object} { success: boolean, user?: Object, error?: string }
+   */
+  findUserByEmail: function(email) {
+    try {
+      const currentUserEmail = Session.getActiveUser().getEmail();
+      const currentUser = DatabaseModule.getUserByEmail(currentUserEmail);
+
+      if (!currentUser) {
+        return { success: false, error: 'Current user not registered' };
+      }
+
+      if (!email || !email.trim()) {
+        return { success: false, error: 'Email is required' };
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+
+      if (trimmedEmail === currentUserEmail.toLowerCase()) {
+        return { success: false, error: 'Cannot start a conversation with yourself' };
+      }
+
+      const user = DatabaseModule.getUserByEmail(trimmedEmail);
+
+      if (!user) {
+        return { success: false, error: 'No user found with this email address' };
+      }
+
+      return { success: true, user: user };
+    } catch (error) {
+      Logger.log('findUserByEmail Error: ' + error.toString());
+      return { success: false, error: error.toString() };
+    }
+  },
+
+  /**
    * 未読メッセージ数を取得
    * @returns {Object} { success: boolean, unreadCount?: number, error?: string }
    */
