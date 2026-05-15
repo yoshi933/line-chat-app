@@ -506,23 +506,33 @@
      */
     async function initializeApp() {
       try {
+        console.log('App initialization started...');
+        
         // ユーザー登録状態を確認
-        const result = await new Promise(resolve => {
-          google.script.run.withSuccessHandler(resolve).checkUserExists();
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .checkUserExists();
         });
+
+        console.log('checkUserExists result:', result);
 
         if (result.success && result.exists) {
           // ユーザーが登録されている場合
+          console.log('User already registered:', result.user);
           AppState.currentUser = result.user;
           displayChatUI();
           startPolling();
         } else {
           // ユーザーが登録されていない場合
+          console.log('User not registered, showing registration UI');
           displayRegistrationUI();
         }
       } catch (error) {
         console.error('Initialize Error:', error);
-        showError('初期化に失敗しました');
+        console.error('Error stack:', error.stack);
+        showError('初期化に失敗しました: ' + error.toString());
       }
     }
 
@@ -530,23 +540,33 @@
      * 登録UI表示
      */
     async function displayRegistrationUI() {
-      document.getElementById('loadingScreen').style.display = 'none';
-      document.getElementById('registrationScreen').style.display = 'flex';
+      try {
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.getElementById('registrationScreen').style.display = 'flex';
 
-      // メールアドレスを取得して表示
-      const emailResult = await new Promise(resolve => {
-        google.script.run.withSuccessHandler(resolve).handleRequest('getCurrentUser', {});
-      });
+        // メールアドレスを取得して表示
+        const emailResult = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .handleRequest('getCurrentUser', {});
+        });
 
-      if (emailResult.user) {
-        document.getElementById('emailInput').value = emailResult.user.email;
+        console.log('getCurrentUser result:', emailResult);
+
+        if (emailResult.user) {
+          document.getElementById('emailInput').value = emailResult.user.email;
+        }
+
+        // 登録ボタンのイベントリスナー
+        document.getElementById('registerBtn').addEventListener('click', registerUser);
+        document.getElementById('usernameInput').addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') registerUser();
+        });
+      } catch (error) {
+        console.error('displayRegistrationUI Error:', error);
+        showError('登録UI表示に失敗しました: ' + error.toString());
       }
-
-      // 登録ボタンのイベントリスナー
-      document.getElementById('registerBtn').addEventListener('click', registerUser);
-      document.getElementById('usernameInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') registerUser();
-      });
     }
 
     /**
@@ -575,9 +595,16 @@
       registerBtn.textContent = '登録中...';
 
       try {
-        const result = await new Promise(resolve => {
-          google.script.run.withSuccessHandler(resolve).registerUser(username);
+        console.log('Registering user with username:', username);
+
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .handleRequest('registerUser', { username: username });
         });
+
+        console.log('registerUser result:', result);
 
         if (result.success) {
           AppState.currentUser = {
@@ -594,11 +621,13 @@
         } else {
           errorElement.textContent = result.error || '登録に失敗しました';
           errorElement.style.display = 'block';
+          console.error('Registration failed:', result.error);
         }
       } catch (error) {
-        errorElement.textContent = 'エラーが発生しました';
+        errorElement.textContent = 'エラーが発生しました: ' + error.toString();
         errorElement.style.display = 'block';
         console.error('Register Error:', error);
+        console.error('Error stack:', error.stack);
       } finally {
         registerBtn.disabled = false;
         registerBtn.textContent = '登録する';
@@ -635,15 +664,22 @@
      */
     async function loadConversations() {
       try {
-        const result = await new Promise(resolve => {
-          google.script.run.withSuccessHandler(resolve).handleRequest('getConversations', {
-            userId: AppState.currentUser.userId
-          });
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .handleRequest('getConversations', {
+              userId: AppState.currentUser.userId
+            });
         });
+
+        console.log('getConversations result:', result);
 
         if (result.success) {
           AppState.conversations = result.conversations;
           renderConversationList();
+        } else {
+          console.error('getConversations failed:', result.error);
         }
       } catch (error) {
         console.error('Load Conversations Error:', error);
@@ -707,16 +743,23 @@
      */
     async function loadMessages() {
       try {
-        const result = await new Promise(resolve => {
-          google.script.run.withSuccessHandler(resolve).handleRequest('getMessages', {
-            userId: AppState.selectedConversationId,
-            limit: 50
-          });
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .handleRequest('getMessages', {
+              userId: AppState.selectedConversationId,
+              limit: 50
+            });
         });
+
+        console.log('getMessages result:', result);
 
         if (result.success) {
           AppState.messages = result.messages;
           renderMessages();
+        } else {
+          console.error('getMessages failed:', result.error);
         }
       } catch (error) {
         console.error('Load Messages Error:', error);
@@ -767,12 +810,17 @@
       if (!message) return;
 
       try {
-        const result = await new Promise(resolve => {
-          google.script.run.withSuccessHandler(resolve).handleRequest('sendMessage', {
-            recipientId: AppState.selectedConversationId,
-            message: message
-          });
+        const result = await new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .handleRequest('sendMessage', {
+              recipientId: AppState.selectedConversationId,
+              message: message
+            });
         });
+
+        console.log('sendMessage result:', result);
 
         if (result.success) {
           input.value = '';
@@ -783,7 +831,7 @@
         }
       } catch (error) {
         console.error('Send Message Error:', error);
-        showError('メッセージの送信に失敗しました');
+        showError('メッセージの送信に失敗しました: ' + error.toString());
       }
     }
 
@@ -830,11 +878,13 @@
     }
 
     function showError(message) {
-      alert(message); // 簡易実装。本来はトーストなど使用
+      console.error('Error:', message);
+      alert(message);
     }
 
     // アプリ起動
     window.addEventListener('load', () => {
+      console.log('Page loaded, initializing app...');
       initializeApp();
     });
   </script>
