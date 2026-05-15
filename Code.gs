@@ -69,6 +69,9 @@ function handleRequest(action, data) {
       case 'getConversations':
         return ChatModule.getConversations(data.userId);
       
+      case 'findUserByEmail':
+        return ChatModule.findUserByEmail(data.email);
+      
       default:
         return { success: false, error: 'Unknown action: ' + action };
     }
